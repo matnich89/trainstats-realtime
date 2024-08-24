@@ -1,0 +1,11 @@
+services:
+  train_stats:
+    build: .
+    platform: linux/amd64
+    container_name: train_stats_realtime
+    environment:
+      - NR_USERNAME
+      - NR_PASSWORD
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
