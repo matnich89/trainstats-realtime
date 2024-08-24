@@ -26,7 +26,7 @@ func NewApp(router *chi.Mux, handler *handler.Handler) *App {
 }
 
 func (a *App) routes() {
-	a.router.Get("/trains", a.handler.ConnectWS)
+	a.router.Get("/trains", a.handler.HandleNationalData)
 }
 
 func (a *App) Serve() error {

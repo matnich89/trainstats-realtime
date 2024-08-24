@@ -25,7 +25,11 @@ func main() {
 		log.Fatalln(fmt.Errorf("error creating network rail client: %w", err))
 	}
 
-	requestHandler := handler.NewHandler(nrClient)
+	requestHandler, err := handler.NewHandler(nrClient)
+
+	if err != nil {
+		log.Fatalln(fmt.Errorf("error creating handler: %w", err))
+	}
 
 	app := cmd.NewApp(router, requestHandler)
 
