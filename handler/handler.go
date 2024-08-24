@@ -8,6 +8,7 @@ import (
 	"github.com/matnich89/trainstats-service-template/model"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 var upgrader = websocket.Upgrader{
@@ -32,7 +33,6 @@ func NewHandler(nrClient *client.NetworkRailClient) (*Handler, error) {
 }
 
 func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
-	log.Println("yo")
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Error upgrading connection:", err)
@@ -49,11 +49,9 @@ func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
 		select {
 		case data := <-h.realTimeDataChan:
 			log.Println("received data")
-			nrData := model.NationalData{
-				OnTime:              data.RTPPMDataMsgV1.RTPPMData.NationalPage.NationalPPM.OnTime,
-				CancelledOrVeryLate: data.RTPPMDataMsgV1.RTPPMData.NationalPage.NationalPPM.CancelVeryLate,
-				Late:                data.RTPPMDataMsgV1.RTPPMData.NationalPage.NationalPPM.Late,
-				Total:               data.RTPPMDataMsgV1.RTPPMData.NationalPage.NationalPPM.Total,
+			nrData, err := buildNationalRailData(data.RTPPMDataMsgV1.RTPPMData.NationalPage.NationalPPM)
+			if err != nil {
+				log.Println("Error building National Rail Data:", err)
 			}
 			b, err := json.Marshal(nrData)
 			if err != nil {
@@ -65,4 +63,34 @@ func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+func buildNationalRailData(ppm realtime.NationalPPM) (model.NationalData, error) {
+	onTime, err := strconv.Atoi(ppm.OnTime)
+	if err != nil {
+		return model.NationalData{}, err
+	}
+
+	canclledOrVeryLate, err := strconv.Atoi(ppm.CancelVeryLate)
+	if err != nil {
+		return model.NationalData{}, err
+	}
+
+	late, err := strconv.Atoi(ppm.Late)
+	if err != nil {
+		return model.NationalData{}, err
+	}
+
+	total, err := strconv.Atoi(ppm.Total)
+	if err != nil {
+		return model.NationalData{}, err
+	}
+
+	return model.NationalData{
+		OnTime:              onTime,
+		CancelledOrVeryLate: canclledOrVeryLate,
+		Late:                late,
+		Total:               total,
+	}, nil
+
 }
