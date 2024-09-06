@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"github.com/gorilla/websocket"
-	"github.com/matnich89/network-rail-client/client"
 	"github.com/matnich89/network-rail-client/model/realtime"
 	"github.com/matnich89/trainstats-service-template/model"
 	"log"
@@ -25,12 +24,12 @@ type Client interface {
 }
 
 type Handler struct {
-	nrClient         Client
-	realTimeDataChan chan *realtime.RTPPMDataMsg
-	latestData       *model.NationalData
+	nrClient               Client
+	realTimeDataChan       chan *realtime.RTPPMDataMsg
+	latestNationalRailData *model.NationalData
 }
 
-func NewHandler(nrClient *client.NetworkRailClient) (*Handler, error) {
+func NewHandler(nrClient Client) (*Handler, error) {
 	realTimeDataChan, err := nrClient.SubRTPPM()
 	if err != nil {
 		return nil, err
@@ -41,7 +40,7 @@ func NewHandler(nrClient *client.NetworkRailClient) (*Handler, error) {
 		Late:                0,
 		Total:               0,
 	}
-	return &Handler{nrClient: nrClient, realTimeDataChan: realTimeDataChan, latestData: latestData}, nil
+	return &Handler{nrClient: nrClient, realTimeDataChan: realTimeDataChan, latestNationalRailData: latestData}, nil
 }
 
 func (h *Handler) Listen() {
@@ -53,7 +52,7 @@ func (h *Handler) Listen() {
 				if err != nil {
 					log.Println("Error building NationalRailData:", err)
 				} else {
-					h.latestData = nrData
+					h.latestNationalRailData = nrData
 				}
 			case <-time.After(5 * time.Minute):
 				log.Println("Warning: No data received in the last 5 minutes, Topic could be down")
@@ -76,7 +75,7 @@ func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for {
-		b, err := json.Marshal(h.latestData)
+		b, err := json.Marshal(h.latestNationalRailData)
 		if err != nil {
 			log.Println("Error marshalling data:", err)
 		}
@@ -93,7 +92,7 @@ func buildNationalRailData(ppm realtime.NationalPPM) (*model.NationalData, error
 		return nil, err
 	}
 
-	canclledOrVeryLate, err := strconv.Atoi(ppm.CancelVeryLate)
+	cancelledOrVeryLate, err := strconv.Atoi(ppm.CancelVeryLate)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +101,7 @@ func buildNationalRailData(ppm realtime.NationalPPM) (*model.NationalData, error
 	if err != nil {
 		return nil, err
 	}
-	late = late - canclledOrVeryLate
+	late = late - cancelledOrVeryLate
 
 	total, err := strconv.Atoi(ppm.Total)
 	if err != nil {
@@ -111,7 +110,7 @@ func buildNationalRailData(ppm realtime.NationalPPM) (*model.NationalData, error
 
 	return &model.NationalData{
 		OnTime:              onTime,
-		CancelledOrVeryLate: canclledOrVeryLate,
+		CancelledOrVeryLate: cancelledOrVeryLate,
 		Late:                late,
 		Total:               total,
 	}, nil
