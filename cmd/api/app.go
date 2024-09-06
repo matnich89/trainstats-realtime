@@ -31,6 +31,8 @@ func (a *App) routes() {
 
 func (a *App) Serve() error {
 
+	a.handler.Listen()
+
 	srv := &http.Server{
 		Addr:         ":8080",
 		Handler:      a.router,
