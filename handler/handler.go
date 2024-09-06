@@ -3,12 +3,12 @@ package handler
 import (
 	"encoding/json"
 	"github.com/gorilla/websocket"
-	"github.com/matnich89/network-rail-client/client"
 	"github.com/matnich89/network-rail-client/model/realtime"
 	"github.com/matnich89/trainstats-service-template/model"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 var upgrader = websocket.Upgrader{
@@ -19,17 +19,46 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-type Handler struct {
-	nrClient         *client.NetworkRailClient
-	realTimeDataChan chan *realtime.RTPPMDataMsg
+type Client interface {
+	SubRTPPM() (chan *realtime.RTPPMDataMsg, error)
 }
 
-func NewHandler(nrClient *client.NetworkRailClient) (*Handler, error) {
+type Handler struct {
+	nrClient               Client
+	realTimeDataChan       chan *realtime.RTPPMDataMsg
+	latestNationalRailData *model.NationalData
+}
+
+func NewHandler(nrClient Client) (*Handler, error) {
 	realTimeDataChan, err := nrClient.SubRTPPM()
 	if err != nil {
 		return nil, err
 	}
-	return &Handler{nrClient: nrClient, realTimeDataChan: realTimeDataChan}, nil
+	latestData := &model.NationalData{
+		OnTime:              0,
+		CancelledOrVeryLate: 0,
+		Late:                0,
+		Total:               0,
+	}
+	return &Handler{nrClient: nrClient, realTimeDataChan: realTimeDataChan, latestNationalRailData: latestData}, nil
+}
+
+func (h *Handler) Listen() {
+	go func() {
+		for {
+			select {
+			case data := <-h.realTimeDataChan:
+				nrData, err := buildNationalRailData(data.RTPPMDataMsgV1.RTPPMData.NationalPage.NationalPPM)
+				if err != nil {
+					log.Println("Error building NationalRailData:", err)
+				} else {
+					h.latestNationalRailData = nrData
+				}
+			case <-time.After(5 * time.Minute):
+				log.Println("Warning: No data received in the last 5 minutes, Topic could be down")
+			}
+		}
+	}()
 }
 
 func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
@@ -46,49 +75,42 @@ func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for {
-		select {
-		case data := <-h.realTimeDataChan:
-			log.Println("received data")
-			nrData, err := buildNationalRailData(data.RTPPMDataMsgV1.RTPPMData.NationalPage.NationalPPM)
-			if err != nil {
-				log.Println("Error building National Rail Data:", err)
-			}
-			b, err := json.Marshal(nrData)
-			if err != nil {
-				log.Println("Error marshalling data:", err)
-			}
-			if err := conn.WriteMessage(websocket.TextMessage, b); err != nil {
-				log.Println("Error sending periodic message:", err)
-				return
-			}
+		b, err := json.Marshal(h.latestNationalRailData)
+		if err != nil {
+			log.Println("Error marshalling data:", err)
+		}
+		if err := conn.WriteMessage(websocket.TextMessage, b); err != nil {
+			log.Println("Error sending message to client:", err)
+			return
 		}
 	}
 }
 
-func buildNationalRailData(ppm realtime.NationalPPM) (model.NationalData, error) {
+func buildNationalRailData(ppm realtime.NationalPPM) (*model.NationalData, error) {
 	onTime, err := strconv.Atoi(ppm.OnTime)
 	if err != nil {
-		return model.NationalData{}, err
+		return nil, err
 	}
 
-	canclledOrVeryLate, err := strconv.Atoi(ppm.CancelVeryLate)
+	cancelledOrVeryLate, err := strconv.Atoi(ppm.CancelVeryLate)
 	if err != nil {
-		return model.NationalData{}, err
+		return nil, err
 	}
 
 	late, err := strconv.Atoi(ppm.Late)
 	if err != nil {
-		return model.NationalData{}, err
+		return nil, err
 	}
+	late = late - cancelledOrVeryLate
 
 	total, err := strconv.Atoi(ppm.Total)
 	if err != nil {
-		return model.NationalData{}, err
+		return nil, err
 	}
 
-	return model.NationalData{
+	return &model.NationalData{
 		OnTime:              onTime,
-		CancelledOrVeryLate: canclledOrVeryLate,
+		CancelledOrVeryLate: cancelledOrVeryLate,
 		Late:                late,
 		Total:               total,
 	}, nil
