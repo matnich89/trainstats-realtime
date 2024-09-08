@@ -1,4 +1,4 @@
-module github.com/matnich89/trainstats-service-template
+module github.com/matnich89/trainstats-realtime
 
 go 1.23
 

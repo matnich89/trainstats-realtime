@@ -1,10 +1,10 @@
-package handler
+package national
 
 import (
 	"encoding/json"
 	"github.com/gorilla/websocket"
 	"github.com/matnich89/network-rail-client/model/realtime"
-	"github.com/matnich89/trainstats-service-template/model"
+	"github.com/matnich89/trainstats-realtime/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"

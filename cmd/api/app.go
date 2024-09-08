@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/go-chi/chi/v5"
-	"github.com/matnich89/trainstats-service-template/handler"
+	"github.com/matnich89/trainstats-realtime/handler/national"
 	"log"
 	"net/http"
 	"os"
@@ -14,24 +14,24 @@ import (
 )
 
 type App struct {
-	router  *chi.Mux
-	handler *handler.Handler
+	router          *chi.Mux
+	nationalHandler *national.Handler
 }
 
-func NewApp(router *chi.Mux, handler *handler.Handler) *App {
+func NewApp(router *chi.Mux, handler *national.Handler) *App {
 	return &App{
-		router:  router,
-		handler: handler,
+		router:          router,
+		nationalHandler: handler,
 	}
 }
 
 func (a *App) routes() {
-	a.router.Get("/trains", a.handler.HandleNationalData)
+	a.router.Get("/national", a.nationalHandler.HandleNationalData)
 }
 
 func (a *App) Serve() error {
 
-	a.handler.Listen()
+	a.nationalHandler.Listen()
 
 	srv := &http.Server{
 		Addr:         ":8080",
