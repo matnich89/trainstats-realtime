@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"github.com/go-chi/chi/v5"
 	"github.com/matnich89/network-rail-client/client"
-	cmd "github.com/matnich89/trainstats-service-template/cmd/api"
-	"github.com/matnich89/trainstats-service-template/handler"
+	cmd "github.com/matnich89/trainstats-realtime/cmd/api"
+	"github.com/matnich89/trainstats-realtime/handler/national"
+	"github.com/matnich89/trainstats-realtime/service"
 	"log"
 	"os"
 )
@@ -21,17 +21,15 @@ func main() {
 
 	nrClient, err := client.NewNetworkRailClient(ctx, username, password)
 
-	if err != nil {
-		log.Fatalln(fmt.Errorf("error creating network rail client: %w", err))
-	}
-
-	requestHandler, err := handler.NewHandler(nrClient)
+	networkRailService, err := service.NewNetworkRail(nrClient)
 
 	if err != nil {
-		log.Fatalln(fmt.Errorf("error creating handler: %w", err))
+		log.Fatal(err)
 	}
 
-	app := cmd.NewApp(router, requestHandler)
+	nationalHandler := national.NewHandler(networkRailService.NationalChan)
+
+	app := cmd.NewApp(router, nationalHandler, networkRailService)
 
 	err = app.Serve()
 

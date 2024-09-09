@@ -1,15 +1,18 @@
-package handler
+package national
 
 import (
 	"encoding/json"
 	"github.com/gorilla/websocket"
 	"github.com/matnich89/network-rail-client/model/realtime"
-	"github.com/matnich89/trainstats-service-template/model"
+	"github.com/matnich89/trainstats-realtime/model"
 	"log"
 	"net/http"
 	"strconv"
-	"time"
 )
+
+type RailService interface {
+	ProcessData(shutdown <-chan struct{})
+}
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
@@ -19,46 +22,37 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-type Client interface {
-	SubRTPPM() (chan *realtime.RTPPMDataMsg, error)
-}
-
 type Handler struct {
-	nrClient               Client
-	realTimeDataChan       chan *realtime.RTPPMDataMsg
+	nationalDataChan       chan *realtime.NationalPPM
 	latestNationalRailData *model.NationalData
+	networkRailService     RailService
 }
 
-func NewHandler(nrClient Client) (*Handler, error) {
-	realTimeDataChan, err := nrClient.SubRTPPM()
-	if err != nil {
-		return nil, err
-	}
+func NewHandler(nationalDataChan chan *realtime.NationalPPM) *Handler {
 	latestData := &model.NationalData{
 		OnTime:              0,
 		CancelledOrVeryLate: 0,
 		Late:                0,
 		Total:               0,
 	}
-	return &Handler{nrClient: nrClient, realTimeDataChan: realTimeDataChan, latestNationalRailData: latestData}, nil
+	return &Handler{latestNationalRailData: latestData, nationalDataChan: nationalDataChan}
 }
 
-func (h *Handler) Listen() {
-	go func() {
-		for {
-			select {
-			case data := <-h.realTimeDataChan:
-				nrData, err := buildNationalRailData(data.RTPPMDataMsgV1.RTPPMData.NationalPage.NationalPPM)
-				if err != nil {
-					log.Println("Error building NationalRailData:", err)
-				} else {
-					h.latestNationalRailData = nrData
-				}
-			case <-time.After(5 * time.Minute):
-				log.Println("Warning: No data received in the last 5 minutes, Topic could be down")
+func (h *Handler) Listen(shutdownCh <-chan struct{}) {
+	for {
+		select {
+		case data := <-h.nationalDataChan:
+			nrData, err := buildNationalRailData(data)
+			if err != nil {
+				log.Println("Error building NationalRailData:", err)
+			} else {
+				h.latestNationalRailData = nrData
 			}
+		case <-shutdownCh:
+			log.Println("Shutting down national data handler")
+			return
 		}
-	}()
+	}
 }
 
 func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +80,7 @@ func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func buildNationalRailData(ppm realtime.NationalPPM) (*model.NationalData, error) {
+func buildNationalRailData(ppm *realtime.NationalPPM) (*model.NationalData, error) {
 	onTime, err := strconv.Atoi(ppm.OnTime)
 	if err != nil {
 		return nil, err
