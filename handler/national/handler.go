@@ -5,12 +5,14 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/matnich89/network-rail-client/model/realtime"
 	"github.com/matnich89/trainstats-realtime/model"
-	"github.com/matnich89/trainstats-realtime/service"
 	"log"
 	"net/http"
 	"strconv"
-	"time"
 )
+
+type RailService interface {
+	ProcessData(shutdown <-chan struct{})
+}
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
@@ -23,7 +25,7 @@ var upgrader = websocket.Upgrader{
 type Handler struct {
 	nationalDataChan       chan *realtime.NationalPPM
 	latestNationalRailData *model.NationalData
-	networkRailService     *service.NetworkRail
+	networkRailService     RailService
 }
 
 func NewHandler(nationalDataChan chan *realtime.NationalPPM) *Handler {
@@ -46,8 +48,6 @@ func (h *Handler) Listen(shutdownCh <-chan struct{}) {
 			} else {
 				h.latestNationalRailData = nrData
 			}
-		case <-time.After(5 * time.Minute):
-			log.Println("Warning: No data received in the last 5 minutes, Topic could be down")
 		case <-shutdownCh:
 			log.Println("Shutting down national data handler")
 			return

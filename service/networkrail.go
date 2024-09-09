@@ -1,19 +1,22 @@
 package service
 
 import (
-	"github.com/matnich89/network-rail-client/client"
 	"github.com/matnich89/network-rail-client/model/realtime"
 	"log"
 )
 
+type Client interface {
+	SubRTPPM() (chan *realtime.RTPPMDataMsg, error)
+}
+
 type NetworkRail struct {
-	client            *client.NetworkRailClient
+	client            Client
 	DataChan          chan *realtime.RTPPMDataMsg
 	NationalChan      chan *realtime.NationalPPM
 	TrainOperatorChan chan *realtime.OperatorData
 }
 
-func NewNetworkRail(client *client.NetworkRailClient) (*NetworkRail, error) {
+func NewNetworkRail(client Client) (*NetworkRail, error) {
 	rtppmChannel, err := client.SubRTPPM()
 	if err != nil {
 		return nil, err
