@@ -3,6 +3,7 @@ package service
 import (
 	"github.com/matnich89/network-rail-client/client"
 	"github.com/matnich89/network-rail-client/model/realtime"
+	"log"
 )
 
 type NetworkRail struct {
@@ -20,16 +21,20 @@ func NewNetworkRail(client *client.NetworkRailClient) (*NetworkRail, error) {
 	return &NetworkRail{
 		client:            client,
 		DataChan:          rtppmChannel,
-		NationalChan:      make(chan *realtime.NationalPPM),
-		TrainOperatorChan: make(chan *realtime.OperatorData),
+		NationalChan:      make(chan *realtime.NationalPPM, 10),
+		TrainOperatorChan: make(chan *realtime.OperatorData, 10),
 	}, nil
 }
 
-func (n *NetworkRail) ProcessData() {
+func (n *NetworkRail) ProcessData(shutdown <-chan struct{}) {
 	for {
 		select {
 		case data := <-n.DataChan:
 			n.processNational(data)
+			n.processTrainOperator(data)
+		case <-shutdown:
+			log.Println("process data stopped")
+			return
 		}
 	}
 }

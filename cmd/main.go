@@ -27,11 +27,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	go networkRailService.ProcessData()
-
 	nationalHandler := national.NewHandler(networkRailService.NationalChan)
 
-	app := cmd.NewApp(router, nationalHandler)
+	app := cmd.NewApp(router, nationalHandler, networkRailService)
 
 	err = app.Serve()
 

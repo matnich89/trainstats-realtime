@@ -36,22 +36,23 @@ func NewHandler(nationalDataChan chan *realtime.NationalPPM) *Handler {
 	return &Handler{latestNationalRailData: latestData, nationalDataChan: nationalDataChan}
 }
 
-func (h *Handler) Listen() {
-	go func() {
-		for {
-			select {
-			case data := <-h.nationalDataChan:
-				nrData, err := buildNationalRailData(data)
-				if err != nil {
-					log.Println("Error building NationalRailData:", err)
-				} else {
-					h.latestNationalRailData = nrData
-				}
-			case <-time.After(5 * time.Minute):
-				log.Println("Warning: No data received in the last 5 minutes, Topic could be down")
+func (h *Handler) Listen(shutdownCh <-chan struct{}) {
+	for {
+		select {
+		case data := <-h.nationalDataChan:
+			nrData, err := buildNationalRailData(data)
+			if err != nil {
+				log.Println("Error building NationalRailData:", err)
+			} else {
+				h.latestNationalRailData = nrData
 			}
+		case <-time.After(5 * time.Minute):
+			log.Println("Warning: No data received in the last 5 minutes, Topic could be down")
+		case <-shutdownCh:
+			log.Println("Shutting down national data handler")
+			return
 		}
-	}()
+	}
 }
 
 func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
