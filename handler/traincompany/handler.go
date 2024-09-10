@@ -1,7 +1,6 @@
-package national
+package traincompany
 
 import (
-	"encoding/json"
 	"github.com/gorilla/websocket"
 	"github.com/matnich89/network-rail-client/model/realtime"
 	"github.com/matnich89/trainstats-realtime/model"
@@ -23,31 +22,23 @@ var upgrader = websocket.Upgrader{
 }
 
 type Handler struct {
-	nationalDataChan       chan *realtime.NationalPPM
-	latestNationalRailData *model.NationalData
-	networkRailService     RailService
+	trainCompanyDataChan chan *realtime.OperatorData
+	networkRailService   RailService
 }
 
-func NewHandler(nationalDataChan chan *realtime.NationalPPM) *Handler {
-	latestData := &model.NationalData{
-		OnTime:              0,
-		CancelledOrVeryLate: 0,
-		Late:                0,
-		Total:               0,
-	}
-	return &Handler{latestNationalRailData: latestData, nationalDataChan: nationalDataChan}
+func NewHandler(trainCompanyDataChan chan *realtime.OperatorData) *Handler {
+	return &Handler{trainCompanyDataChan: trainCompanyDataChan}
 }
 
 func (h *Handler) Listen(shutdownCh <-chan struct{}) {
 	for {
 		select {
-		case data := <-h.nationalDataChan:
-			nrData, err := buildNationalRailData(data)
+		case data := <-h.trainCompanyDataChan:
+			operatorData, err := buildTrainOperatorData(data)
 			if err != nil {
-				log.Println("Error building NationalRailData:", err)
-			} else {
-				h.latestNationalRailData = nrData
+				log.Println("Error building train data", err)
 			}
+			log.Println(operatorData.Name + ":" + strconv.Itoa(operatorData.Percentage))
 		case <-shutdownCh:
 			log.Println("Shutting down national data handler")
 			return
@@ -55,7 +46,7 @@ func (h *Handler) Listen(shutdownCh <-chan struct{}) {
 	}
 }
 
-func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleOperatorData(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Error upgrading connection:", err)
@@ -69,18 +60,17 @@ func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for {
-		b, err := json.Marshal(h.latestNationalRailData)
 		if err != nil {
 			log.Println("Error marshalling data:", err)
 		}
-		if err := conn.WriteMessage(websocket.TextMessage, b); err != nil {
+		if err := conn.WriteMessage(websocket.TextMessage, []byte("todo")); err != nil {
 			log.Println("Error sending message to client:", err)
 			return
 		}
 	}
 }
 
-func buildNationalRailData(ppm *realtime.NationalPPM) (*model.NationalData, error) {
+func buildTrainOperatorData(ppm *realtime.OperatorData) (*model.TrainOperator, error) {
 	onTime, err := strconv.Atoi(ppm.OnTime)
 	if err != nil {
 		return nil, err
@@ -101,11 +91,13 @@ func buildNationalRailData(ppm *realtime.NationalPPM) (*model.NationalData, erro
 	if err != nil {
 		return nil, err
 	}
-
-	return &model.NationalData{
-		OnTime:              onTime,
-		CancelledOrVeryLate: cancelledOrVeryLate,
-		Late:                late,
+	return &model.TrainOperator{
+		Name:                ppm.Name,
 		Total:               total,
+		Late:                0,
+		CancelledOrVeryLate: 0,
+		Percentage:          0,
+		Position:            0,
+		OnTime:              onTime,
 	}, nil
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/go-chi/chi/v5"
 	"github.com/matnich89/trainstats-realtime/handler/national"
+	"github.com/matnich89/trainstats-realtime/handler/traincompany"
 	"github.com/matnich89/trainstats-realtime/service"
 	"log"
 	"net/http"
@@ -16,32 +17,40 @@ import (
 )
 
 type App struct {
-	router             *chi.Mux
-	nationalHandler    *national.Handler
-	networkRailService *service.NetworkRail
-	wg                 *sync.WaitGroup
-	shutdownCh         chan struct{}
+	router               *chi.Mux
+	nationalHandler      *national.Handler
+	trainOperatorHandler *traincompany.Handler
+	networkRailService   *service.NetworkRail
+	wg                   *sync.WaitGroup
+	shutdownCh           chan struct{}
 }
 
-func NewApp(router *chi.Mux, handler *national.Handler, nrService *service.NetworkRail) *App {
+func NewApp(router *chi.Mux, nationalHandler *national.Handler, trainOperatorHandler *traincompany.Handler, nrService *service.NetworkRail) *App {
 	return &App{
-		router:             router,
-		nationalHandler:    handler,
-		networkRailService: nrService,
-		wg:                 &sync.WaitGroup{},
-		shutdownCh:         make(chan struct{}),
+		router:               router,
+		nationalHandler:      nationalHandler,
+		trainOperatorHandler: trainOperatorHandler,
+		networkRailService:   nrService,
+		wg:                   &sync.WaitGroup{},
+		shutdownCh:           make(chan struct{}),
 	}
 }
 
 func (a *App) routes() {
 	a.router.Get("/national", a.nationalHandler.HandleNationalData)
+	a.router.Get("/trainoperator/{operator}", a.trainOperatorHandler.HandleOperatorData)
 }
 
-func (a *App) Serve() error {
-	a.wg.Add(2)
+func (a *App) Serve(ctx context.Context) error {
+	a.wg.Add(3)
 	go func() {
 		defer a.wg.Done()
 		a.nationalHandler.Listen(a.shutdownCh)
+	}()
+
+	go func() {
+		defer a.wg.Done()
+		a.trainOperatorHandler.Listen(a.shutdownCh)
 	}()
 
 	go func() {
@@ -66,7 +75,7 @@ func (a *App) Serve() error {
 
 		close(a.shutdownCh)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 
 		shutdownError <- srv.Shutdown(ctx)

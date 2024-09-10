@@ -25,7 +25,7 @@ func NewNetworkRail(client Client) (*NetworkRail, error) {
 		client:            client,
 		DataChan:          rtppmChannel,
 		NationalChan:      make(chan *realtime.NationalPPM, 10),
-		TrainOperatorChan: make(chan *realtime.OperatorData, 10),
+		TrainOperatorChan: make(chan *realtime.OperatorData, 20),
 	}, nil
 }
 
@@ -33,6 +33,7 @@ func (n *NetworkRail) ProcessData(shutdown <-chan struct{}) {
 	for {
 		select {
 		case data := <-n.DataChan:
+			log.Println("processing...")
 			n.processNational(data)
 			n.processTrainOperator(data)
 		case <-shutdown:
