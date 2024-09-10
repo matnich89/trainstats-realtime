@@ -6,6 +6,7 @@ import (
 	"github.com/matnich89/network-rail-client/client"
 	cmd "github.com/matnich89/trainstats-realtime/cmd/api"
 	"github.com/matnich89/trainstats-realtime/handler/national"
+	"github.com/matnich89/trainstats-realtime/handler/traincompany"
 	"github.com/matnich89/trainstats-realtime/service"
 	"log"
 	"os"
@@ -28,10 +29,11 @@ func main() {
 	}
 
 	nationalHandler := national.NewHandler(networkRailService.NationalChan)
+	trainOperatorHandler := traincompany.NewHandler(networkRailService.TrainOperatorChan)
 
-	app := cmd.NewApp(router, nationalHandler, networkRailService)
+	app := cmd.NewApp(router, nationalHandler, trainOperatorHandler, networkRailService)
 
-	err = app.Serve()
+	err = app.Serve(ctx)
 
 	if err != nil {
 		log.Fatalln(err)
