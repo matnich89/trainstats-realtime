@@ -14,7 +14,6 @@ type TrainOperator struct {
 	Late                int    `json:"late"`
 	CancelledOrVeryLate int    `json:"cancelled_or_very_late"`
 	Percentage          int    `json:"percentage"`
-	Position            int    `json:"position"`
 }
 
 type TrainOperatorTableEntry struct {
@@ -22,6 +21,7 @@ type TrainOperatorTableEntry struct {
 	Name     string `json:"name"`
 }
 
-type TrainOperatorTable struct {
-	TrainOperatorTableEntry int `json:"train_operator_table_entry"`
+type TrainOperatorsResponse struct {
+	TrainOperatorTable []TrainOperatorTableEntry `json:"train_operator_table_entry"`
+	TrainOperators     []TrainOperator           `json:"train_operators"`
 }
