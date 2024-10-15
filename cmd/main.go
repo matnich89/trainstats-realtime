@@ -3,11 +3,9 @@ package main
 import (
 	"context"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-redis/redis/v8"
 	"github.com/matnich89/network-rail-client/client"
 	cmd "github.com/matnich89/trainstats-realtime/cmd/api"
 	"github.com/matnich89/trainstats-realtime/handler/national"
-	"github.com/matnich89/trainstats-realtime/handler/traincompany"
 	"github.com/matnich89/trainstats-realtime/service"
 	"log"
 	"os"
@@ -29,12 +27,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	redisClient := redis.NewClient(&redis.Options{Addr: "localhost:6379"})
-
 	nationalHandler := national.NewHandler(networkRailService.NationalChan)
-	trainOperatorHandler := traincompany.NewHandler(networkRailService.TrainOperatorChan, redisClient)
 
-	app := cmd.NewApp(router, nationalHandler, trainOperatorHandler, networkRailService)
+	app := cmd.NewApp(router, nationalHandler, networkRailService)
 
 	err = app.Serve(ctx)
 

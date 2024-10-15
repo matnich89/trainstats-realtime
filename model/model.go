@@ -1,5 +1,7 @@
 package model
 
+import "github.com/matnich89/network-rail-client/model"
+
 type NationalData struct {
 	OnTime              int `json:"on_time"`
 	CancelledOrVeryLate int `json:"cancelled_or_very_late"`
@@ -24,4 +26,14 @@ type TrainOperatorTableEntry struct {
 type TrainOperatorsResponse struct {
 	TrainOperatorTable []TrainOperatorTableEntry `json:"train_operator_table_entry"`
 	TrainOperators     []TrainOperator           `json:"train_operators"`
+}
+
+type LatestData struct {
+	CurrentData map[string]*model.TrainOperator `json:"currentData"`
+	LeagueTable []LeagueTableEntry              `json:"leagueTable"`
+}
+
+type LeagueTableEntry struct {
+	Name       string  `json:"name"`
+	Percentage float64 `json:"percentage"`
 }
