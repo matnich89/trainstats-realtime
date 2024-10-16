@@ -1,4 +1,4 @@
-name: 'Trainstats Realtime ECR Push'
+name: 'Trainstats Realtime DigitalOcean Push'
 
 on:
   push:
@@ -6,13 +6,13 @@ on:
       - main
 
 env:
-  AWS_REGION: 'us-east-1'
-  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_URL }}
+  DOCKER_REGISTRY: registry.digitalocean.com
+  DOCKER_REPOSITORY: ${{ secrets.DIGITAL_OCEAN_REGISTRY_NAME }}
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
   build-and-push:
-    name: 'Build and Push to ECR'
+    name: 'Build and Push to DigitalOcean'
     runs-on: ubuntu-latest
 
     steps:
@@ -29,22 +29,18 @@ jobs:
           cd cmd/api
           go build -v -o ../../app .
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+      - name: Log in to DigitalOcean Container Registry
+        run: doctl registry login --expiry-seconds 600
 
-      - name: Build, tag, and push image to Amazon ECR
+      - name: Build and push image to DigitalOcean Container Registry
         run: |
-          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REPOSITORY:$IMAGE_TAG
-          echo "image=$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          docker build -t $DOCKER_REGISTRY/$DOCKER_REPOSITORY:$IMAGE_TAG .
+          docker push $DOCKER_REGISTRY/$DOCKER_REPOSITORY:$IMAGE_TAG
 
       - name: Print image details
-        run: echo "Image pushed to ${{ steps.build-and-push.outputs.image }}"
+        run: echo "Image pushed to $DOCKER_REGISTRY/$DOCKER_REPOSITORY:$IMAGE_TAG"
