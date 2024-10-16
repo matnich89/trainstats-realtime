@@ -6,7 +6,7 @@ on:
       - main
 
 env:
-  DOCKER_REGISTRY: registry.digitalocean.com
+  DOCKER_REGISTRY: ${{secrets.DOCKER_REGISTRY}}
   DOCKER_REPOSITORY: ${{ secrets.DIGITAL_OCEAN_REGISTRY_NAME }}
   IMAGE_TAG: ${{ github.sha }}
 
