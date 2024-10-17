@@ -38,7 +38,7 @@ func (a *App) routes() {
 }
 
 func (a *App) Serve(ctx context.Context) error {
-	a.wg.Add(3)
+	a.wg.Add(2)
 	go func() {
 		defer a.wg.Done()
 		a.nationalHandler.Listen(a.shutdownCh)

@@ -56,6 +56,7 @@ func (h *Handler) Listen(shutdownCh <-chan struct{}) {
 }
 
 func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
+	log.Println("connection made...")
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Error upgrading connection:", err)
@@ -63,7 +64,7 @@ func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	if err := conn.WriteMessage(websocket.TextMessage, []byte("Connected to WebSocket server")); err != nil {
+	if err := conn.WriteMessage(websocket.TextMessage, []byte("{}")); err != nil {
 		log.Println("Error sending initial message:", err)
 		return
 	}
