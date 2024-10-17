@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type RailService interface {
@@ -69,14 +70,21 @@ func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
 	for {
-		b, err := json.Marshal(h.latestNationalRailData)
-		if err != nil {
-			log.Println("Error marshalling data:", err)
-		}
-		if err := conn.WriteMessage(websocket.TextMessage, b); err != nil {
-			log.Println("Error sending message to client:", err)
-			return
+		select {
+		case <-ticker.C:
+			b, err := json.Marshal(h.latestNationalRailData)
+			if err != nil {
+				log.Println("Error marshalling data:", err)
+				continue
+			}
+			if err := conn.WriteMessage(websocket.TextMessage, b); err != nil {
+				log.Println("Error sending message to client:", err)
+				return
+			}
 		}
 	}
 }
