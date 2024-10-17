@@ -35,7 +35,6 @@ func (n *NetworkRail) ProcessData(shutdown <-chan struct{}) {
 		case data := <-n.DataChan:
 			log.Println("processing...")
 			n.processNational(data)
-			n.processTrainOperator(data)
 		case <-shutdown:
 			log.Println("process data stopped")
 			return
@@ -46,11 +45,4 @@ func (n *NetworkRail) ProcessData(shutdown <-chan struct{}) {
 func (n *NetworkRail) processNational(data *realtime.RTPPMDataMsg) {
 	nationalData := data.RTPPMDataMsgV1.RTPPMData.NationalPage.NationalPPM
 	n.NationalChan <- &nationalData
-}
-
-func (n *NetworkRail) processTrainOperator(data *realtime.RTPPMDataMsg) {
-	operatorPages := data.RTPPMDataMsgV1.RTPPMData.OperatorPage
-	for _, val := range operatorPages {
-		n.TrainOperatorChan <- &val.Operator
-	}
 }

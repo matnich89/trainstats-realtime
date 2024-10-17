@@ -65,13 +65,29 @@ func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	if err := conn.WriteMessage(websocket.TextMessage, []byte("{}")); err != nil {
-		log.Println("Error sending initial message:", err)
+	initialData, err := json.Marshal(h.latestNationalRailData)
+	if err != nil {
+		log.Println("Error marshalling initial data:", err)
+		return
+	}
+	if err := conn.WriteMessage(websocket.TextMessage, initialData); err != nil {
+		log.Println("Error sending initial data:", err)
 		return
 	}
 
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			if _, _, err := conn.NextReader(); err != nil {
+				log.Println("Client disconnected:", err)
+				return
+			}
+		}
+	}()
 
 	for {
 		select {
@@ -85,6 +101,10 @@ func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
 				log.Println("Error sending message to client:", err)
 				return
 			}
+		case <-done:
+			// Client has disconnected
+			log.Println("Client has disconnected")
+			return
 		}
 	}
 }
