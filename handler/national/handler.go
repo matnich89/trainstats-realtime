@@ -103,7 +103,7 @@ func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
 			}
 		case <-done:
 			// Client has disconnected
-			log.Println("Client has disconnected")
+			log.Println("Client has disconnected :(")
 			return
 		}
 	}
