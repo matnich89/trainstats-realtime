@@ -17,9 +17,17 @@ func main() {
 	username := os.Getenv("NR_USERNAME")
 	password := os.Getenv("NR_PASSWORD")
 
+	if username == "" || password == "" {
+		log.Fatal("Missing required environment variables NR_USERNAME, NR_PASSWORD")
+	}
+
 	ctx := context.Background()
 
 	nrClient, err := client.NewNetworkRailClient(ctx, username, password)
+
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	networkRailService, err := service.NewNetworkRail(nrClient)
 
