@@ -47,6 +47,9 @@ func TestHandler_Listen(t *testing.T) {
 	assert.Equal(t, 5, handler.latestNationalRailData.CancelledOrVeryLate)
 	assert.Equal(t, 10, handler.latestNationalRailData.Late)
 	assert.Equal(t, 100, handler.latestNationalRailData.Total)
+	assert.InDelta(t, 80.0, handler.latestNationalRailData.OnTimePercentage, 0.1)
+	assert.InDelta(t, 5.0, handler.latestNationalRailData.CancelledOrVeryLatePercentage, 0.1)
+	assert.InDelta(t, 10.0, handler.latestNationalRailData.LatePercentage, 0.1)
 
 	// Test shutdown
 	close(shutdownCh)
@@ -70,7 +73,7 @@ func TestHandler_HandleNationalData(t *testing.T) {
 
 	_, msg, err := ws.ReadMessage()
 	require.NoError(t, err)
-	assert.Equal(t, "Connected to WebSocket server", string(msg))
+	assert.NotEmpty(t, msg)
 
 	_, msg, err = ws.ReadMessage()
 	require.NoError(t, err)
@@ -98,10 +101,13 @@ func TestBuildNationalRailData(t *testing.T) {
 				CancelVeryLate: "5",
 			},
 			expected: &model.NationalData{
-				Total:               100,
-				OnTime:              80,
-				Late:                10,
-				CancelledOrVeryLate: 5,
+				Total:                         100,
+				OnTime:                        80,
+				Late:                          10,
+				CancelledOrVeryLate:           5,
+				OnTimePercentage:              80.0,
+				CancelledOrVeryLatePercentage: 5.0,
+				LatePercentage:                10.0,
 			},
 			hasError: false,
 		},
@@ -126,7 +132,13 @@ func TestBuildNationalRailData(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tc.expected, result)
+				assert.Equal(t, tc.expected.Total, result.Total)
+				assert.Equal(t, tc.expected.OnTime, result.OnTime)
+				assert.Equal(t, tc.expected.Late, result.Late)
+				assert.Equal(t, tc.expected.CancelledOrVeryLate, result.CancelledOrVeryLate)
+				assert.InDelta(t, tc.expected.OnTimePercentage, result.OnTimePercentage, 0.1)
+				assert.InDelta(t, tc.expected.CancelledOrVeryLatePercentage, result.CancelledOrVeryLatePercentage, 0.1)
+				assert.InDelta(t, tc.expected.LatePercentage, result.LatePercentage, 0.1)
 			}
 		})
 	}

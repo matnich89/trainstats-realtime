@@ -131,10 +131,18 @@ func buildNationalRailData(ppm *realtime.NationalPPM) (*model.NationalData, erro
 		return nil, err
 	}
 
+	// Calculate percentages
+	onTimePercentage := float64(onTime) / float64(total) * 100
+	cancelledOrVeryLatePercentage := float64(cancelledOrVeryLate) / float64(total) * 100
+	latePercentage := float64(late) / float64(total) * 100
+
 	return &model.NationalData{
-		OnTime:              onTime,
-		CancelledOrVeryLate: cancelledOrVeryLate,
-		Late:                late,
-		Total:               total,
+		OnTime:                        onTime,
+		CancelledOrVeryLate:           cancelledOrVeryLate,
+		Late:                          late,
+		Total:                         total,
+		OnTimePercentage:              onTimePercentage,
+		CancelledOrVeryLatePercentage: cancelledOrVeryLatePercentage,
+		LatePercentage:                latePercentage,
 	}, nil
 }

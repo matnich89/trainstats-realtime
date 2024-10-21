@@ -10,10 +10,9 @@ type Client interface {
 }
 
 type NetworkRail struct {
-	client            Client
-	DataChan          chan *realtime.RTPPMDataMsg
-	NationalChan      chan *realtime.NationalPPM
-	TrainOperatorChan chan *realtime.OperatorData
+	client       Client
+	DataChan     chan *realtime.RTPPMDataMsg
+	NationalChan chan *realtime.NationalPPM
 }
 
 func NewNetworkRail(client Client) (*NetworkRail, error) {
@@ -22,10 +21,9 @@ func NewNetworkRail(client Client) (*NetworkRail, error) {
 		return nil, err
 	}
 	return &NetworkRail{
-		client:            client,
-		DataChan:          rtppmChannel,
-		NationalChan:      make(chan *realtime.NationalPPM, 10),
-		TrainOperatorChan: make(chan *realtime.OperatorData, 20),
+		client:       client,
+		DataChan:     rtppmChannel,
+		NationalChan: make(chan *realtime.NationalPPM, 10),
 	}, nil
 }
 
