@@ -31,7 +31,6 @@ func TestNewNetworkRail(t *testing.T) {
 	assert.Equal(t, mockClient, networkRail.client)
 	assert.Equal(t, mockChannel, networkRail.DataChan)
 	assert.NotNil(t, networkRail.NationalChan)
-	assert.NotNil(t, networkRail.TrainOperatorChan)
 
 	mockClient.AssertExpectations(t)
 }
@@ -76,14 +75,6 @@ func TestNetworkRail_ProcessData(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Timeout waiting for national data")
 	}
-
-	select {
-	case operatorData := <-networkRail.TrainOperatorChan:
-		assert.Equal(t, "TEST", operatorData.Code)
-	case <-time.After(time.Second):
-		t.Fatal("Timeout waiting for operator data")
-	}
-
 	// Test shutdown
 	close(shutdownCh)
 	time.Sleep(100 * time.Millisecond) // Give some time for the goroutine to stop
@@ -113,46 +104,5 @@ func TestNetworkRail_processNational(t *testing.T) {
 		assert.Equal(t, "100", nationalData.Total)
 	case <-time.After(time.Second):
 		t.Fatal("Timeout waiting for national data")
-	}
-}
-
-func TestNetworkRail_processTrainOperator(t *testing.T) {
-	networkRail := &NetworkRail{
-		TrainOperatorChan: make(chan *realtime.OperatorData, 2),
-	}
-
-	testData := &realtime.RTPPMDataMsg{
-		RTPPMDataMsgV1: realtime.RTPPMDataMsgV1{
-			RTPPMData: realtime.RTPPMData{
-				OperatorPage: []realtime.OperatorPage{
-					{
-						Operator: realtime.OperatorData{
-							Code: "TEST1",
-						},
-					},
-					{
-						Operator: realtime.OperatorData{
-							Code: "TEST2",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	networkRail.processTrainOperator(testData)
-
-	select {
-	case operatorData := <-networkRail.TrainOperatorChan:
-		assert.Equal(t, "TEST1", operatorData.Code)
-	case <-time.After(time.Second):
-		t.Fatal("Timeout waiting for first operator data")
-	}
-
-	select {
-	case operatorData := <-networkRail.TrainOperatorChan:
-		assert.Equal(t, "TEST2", operatorData.Code)
-	case <-time.After(time.Second):
-		t.Fatal("Timeout waiting for second operator data")
 	}
 }
