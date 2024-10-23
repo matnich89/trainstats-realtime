@@ -35,7 +35,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	nationalHandler := national.NewHandler(networkRailService.NationalChan)
+	nationalHandler := national.NewHandler(networkRailService.OperatorChan)
 
 	app := cmd.NewApp(router, nationalHandler, networkRailService)
 

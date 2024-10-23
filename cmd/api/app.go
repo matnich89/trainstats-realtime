@@ -34,7 +34,7 @@ func NewApp(router *chi.Mux, nationalHandler *national.Handler, nrService *servi
 }
 
 func (a *App) routes() {
-	a.router.Get("/national", a.nationalHandler.HandleNationalData)
+	a.router.Get("/passenger", a.nationalHandler.HandlePassengerData)
 }
 
 func (a *App) Serve(ctx context.Context) error {

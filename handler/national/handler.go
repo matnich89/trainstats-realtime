@@ -6,6 +6,7 @@ import (
 	"github.com/matnich89/network-rail-client/model/realtime"
 	"github.com/matnich89/trainstats-realtime/model"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -24,30 +25,45 @@ var upgrader = websocket.Upgrader{
 }
 
 type Handler struct {
-	nationalDataChan       chan *realtime.NationalPPM
-	latestNationalRailData *model.NationalData
-	networkRailService     RailService
+	operatorDataChan        chan []realtime.OperatorPage
+	latestPassengerRailData *model.PerformanceData
+	latestFreightRailData   *model.PerformanceData
+	networkRailService      RailService
+	ticker                  *time.Ticker
 }
 
-func NewHandler(nationalDataChan chan *realtime.NationalPPM) *Handler {
-	latestData := &model.NationalData{
+func NewHandler(passengerDataChan chan []realtime.OperatorPage) *Handler {
+	latestFrieghtData := &model.PerformanceData{
 		OnTime:              0,
 		CancelledOrVeryLate: 0,
 		Late:                0,
 		Total:               0,
 	}
-	return &Handler{latestNationalRailData: latestData, nationalDataChan: nationalDataChan}
+
+	latestPassengerData := &model.PerformanceData{
+		OnTime:              0,
+		CancelledOrVeryLate: 0,
+		Late:                0,
+		Total:               0,
+	}
+
+	return &Handler{
+		latestFreightRailData:   latestFrieghtData,
+		latestPassengerRailData: latestPassengerData,
+		ticker:                  time.NewTicker(15 * time.Second),
+		operatorDataChan:        passengerDataChan,
+	}
 }
 
 func (h *Handler) Listen(shutdownCh <-chan struct{}) {
 	for {
 		select {
-		case data := <-h.nationalDataChan:
-			nrData, err := buildNationalRailData(data)
+		case passengerData := <-h.operatorDataChan:
+			paData, err := buildNationalPassengerData(passengerData)
 			if err != nil {
-				log.Println("Error building NationalRailData:", err)
+				log.Println("Error building NationalPassengerData:", err)
 			} else {
-				h.latestNationalRailData = nrData
+				h.latestPassengerRailData = paData
 			}
 		case <-shutdownCh:
 			log.Println("Shutting down national data handler")
@@ -56,7 +72,7 @@ func (h *Handler) Listen(shutdownCh <-chan struct{}) {
 	}
 }
 
-func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandlePassengerData(w http.ResponseWriter, r *http.Request) {
 	log.Println("connection made...")
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -65,7 +81,7 @@ func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	initialData, err := json.Marshal(h.latestNationalRailData)
+	initialData, err := json.Marshal(h.latestPassengerRailData)
 	if err != nil {
 		log.Println("Error marshalling initial data:", err)
 		return
@@ -92,7 +108,7 @@ func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-ticker.C:
-			b, err := json.Marshal(h.latestNationalRailData)
+			b, err := json.Marshal(h.latestPassengerRailData)
 			if err != nil {
 				log.Println("Error marshalling data:", err)
 				continue
@@ -109,40 +125,117 @@ func (h *Handler) HandleNationalData(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func buildNationalRailData(ppm *realtime.NationalPPM) (*model.NationalData, error) {
-	onTime, err := strconv.Atoi(ppm.OnTime)
-	if err != nil {
-		return nil, err
+func buildNationalPassengerData(operatorData []realtime.OperatorPage) (*model.PerformanceData, error) {
+	var onTimeTotal, cancelledVeryLateTotal, lateTotal, fullTotal int
+	var bestOperator, worstOperator *model.OperatorPerformance
+	bestScore := math.MaxFloat64
+	worstScore := -1.0
+
+	for _, op := range operatorData {
+
+		if val, ok := model.TrainOperators[op.Operator.Code]; ok {
+			if val.Carries != model.Passenger {
+				continue
+			}
+		}
+
+		onTime, err := strconv.Atoi(op.Operator.OnTime)
+		if err != nil {
+			log.Println("Error converting onTime:", err)
+			continue
+		}
+
+		cancelledVeryLate, err := strconv.Atoi(op.Operator.CancelVeryLate)
+		if err != nil {
+			log.Println("Error converting cancelVeryLate:", err)
+			continue
+		}
+
+		late, err := strconv.Atoi(op.Operator.Late)
+		if err != nil {
+			log.Println("Error converting late:", err)
+			continue
+		}
+
+		total, err := strconv.Atoi(op.Operator.Total)
+		if err != nil {
+			log.Println("Error converting total:", err)
+			continue
+		}
+
+		operatorPerf := model.OperatorPerformance{
+			Code:                op.Operator.Code,
+			Name:                op.Operator.Name,
+			OnTime:              onTime,
+			Late:                late - cancelledVeryLate,
+			CancelledOrVeryLate: cancelledVeryLate,
+			Total:               total,
+		}
+
+		if total > 0 {
+			operatorPerf.OnTimePercentage = float64(onTime) / float64(total) * 100
+			operatorPerf.LatePercentage = float64(late-cancelledVeryLate) / float64(total) * 100
+			operatorPerf.CancelledOrVeryLatePercentage = float64(cancelledVeryLate) / float64(total) * 100
+		}
+
+		score := calculatePerformanceScore(operatorPerf)
+		operatorPerf.PerformanceScore = score
+
+		if score < bestScore && total >= 10 { // Minimum threshold to avoid operators with very few trains
+			bestScore = score
+			bestOperator = &operatorPerf
+		}
+		if score > worstScore && total >= 10 {
+			worstScore = score
+			worstOperator = &operatorPerf
+		}
+
+		onTimeTotal += onTime
+		cancelledVeryLateTotal += cancelledVeryLate
+		lateTotal += late
+		fullTotal += total
 	}
 
-	cancelledOrVeryLate, err := strconv.Atoi(ppm.CancelVeryLate)
-	if err != nil {
-		return nil, err
+	onTimePercentage := float64(onTimeTotal) / float64(fullTotal) * 100
+	cancelledOrVeryLatePercentage := float64(cancelledVeryLateTotal) / float64(fullTotal) * 100
+	latePercentage := float64(lateTotal) / float64(fullTotal) * 100
+
+	if bestOperator != nil && worstOperator != nil {
+		return &model.PerformanceData{
+			OnTime:                        onTimeTotal,
+			CancelledOrVeryLate:           cancelledVeryLateTotal,
+			Late:                          lateTotal - cancelledVeryLateTotal,
+			Total:                         fullTotal,
+			OnTimePercentage:              onTimePercentage,
+			CancelledOrVeryLatePercentage: cancelledOrVeryLatePercentage,
+			LatePercentage:                latePercentage,
+			BestOperator:                  bestOperator,
+			WorstOperator:                 worstOperator,
+		}, nil
 	}
 
-	late, err := strconv.Atoi(ppm.Late)
-	if err != nil {
-		return nil, err
-	}
-	late = late - cancelledOrVeryLate
-
-	total, err := strconv.Atoi(ppm.Total)
-	if err != nil {
-		return nil, err
-	}
-
-	// Calculate percentages
-	onTimePercentage := float64(onTime) / float64(total) * 100
-	cancelledOrVeryLatePercentage := float64(cancelledOrVeryLate) / float64(total) * 100
-	latePercentage := float64(late) / float64(total) * 100
-
-	return &model.NationalData{
-		OnTime:                        onTime,
-		CancelledOrVeryLate:           cancelledOrVeryLate,
-		Late:                          late,
-		Total:                         total,
+	return &model.PerformanceData{
+		OnTime:                        onTimeTotal,
+		CancelledOrVeryLate:           cancelledVeryLateTotal,
+		Late:                          lateTotal - cancelledVeryLateTotal,
+		Total:                         fullTotal,
 		OnTimePercentage:              onTimePercentage,
 		CancelledOrVeryLatePercentage: cancelledOrVeryLatePercentage,
 		LatePercentage:                latePercentage,
 	}, nil
+}
+
+func calculatePerformanceScore(op model.OperatorPerformance) float64 {
+	if op.Total == 0 {
+		return math.MaxFloat64
+	}
+
+	// Weight cancelled/very late more heavily than regular late trains
+	cancelledWeight := 2.0
+	lateWeight := 1.0
+
+	score := (float64(op.CancelledOrVeryLate)*cancelledWeight +
+		float64(op.Late-op.CancelledOrVeryLate)*lateWeight) / float64(op.Total)
+
+	return score
 }
