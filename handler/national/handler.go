@@ -198,7 +198,7 @@ func buildNationalPassengerData(operatorData []realtime.OperatorPage) (*model.Pe
 
 	onTimePercentage := float64(onTimeTotal) / float64(fullTotal) * 100
 	cancelledOrVeryLatePercentage := float64(cancelledVeryLateTotal) / float64(fullTotal) * 100
-	latePercentage := float64(lateTotal) / float64(fullTotal) * 100
+	latePercentage := float64(lateTotal-cancelledVeryLateTotal) / float64(fullTotal) * 100
 
 	if bestOperator != nil && worstOperator != nil {
 		return &model.PerformanceData{
