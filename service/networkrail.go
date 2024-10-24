@@ -12,7 +12,6 @@ type Client interface {
 type NetworkRail struct {
 	client       Client
 	DataChan     chan *realtime.RTPPMDataMsg
-	NationalChan chan *realtime.NationalPPM
 	OperatorChan chan []realtime.OperatorPage
 }
 
@@ -24,7 +23,6 @@ func NewNetworkRail(client Client) (*NetworkRail, error) {
 	return &NetworkRail{
 		client:       client,
 		DataChan:     rtppmChannel,
-		NationalChan: make(chan *realtime.NationalPPM, 10),
 		OperatorChan: make(chan []realtime.OperatorPage, 10),
 	}, nil
 }
@@ -34,18 +32,12 @@ func (n *NetworkRail) ProcessData(shutdown <-chan struct{}) {
 		select {
 		case data := <-n.DataChan:
 			log.Println("processing...")
-			n.processNational(data)
 			n.processOperator(data)
 		case <-shutdown:
 			log.Println("process data stopped")
 			return
 		}
 	}
-}
-
-func (n *NetworkRail) processNational(data *realtime.RTPPMDataMsg) {
-	nationalData := data.RTPPMDataMsgV1.RTPPMData.NationalPage.NationalPPM
-	n.NationalChan <- &nationalData
 }
 
 func (n *NetworkRail) processOperator(data *realtime.RTPPMDataMsg) {

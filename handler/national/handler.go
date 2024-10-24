@@ -25,7 +25,7 @@ var upgrader = websocket.Upgrader{
 }
 
 type Handler struct {
-	operatorDataChan        chan []realtime.OperatorPage
+	passengerDataChan       chan []realtime.OperatorPage
 	latestPassengerRailData *model.PerformanceData
 	latestFreightRailData   *model.PerformanceData
 	networkRailService      RailService
@@ -51,14 +51,14 @@ func NewHandler(passengerDataChan chan []realtime.OperatorPage) *Handler {
 		latestFreightRailData:   latestFrieghtData,
 		latestPassengerRailData: latestPassengerData,
 		ticker:                  time.NewTicker(15 * time.Second),
-		operatorDataChan:        passengerDataChan,
+		passengerDataChan:       passengerDataChan,
 	}
 }
 
 func (h *Handler) Listen(shutdownCh <-chan struct{}) {
 	for {
 		select {
-		case passengerData := <-h.operatorDataChan:
+		case passengerData := <-h.passengerDataChan:
 			paData, err := buildNationalPassengerData(passengerData)
 			if err != nil {
 				log.Println("Error building NationalPassengerData:", err)
@@ -118,7 +118,6 @@ func (h *Handler) HandlePassengerData(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case <-done:
-			// Client has disconnected
 			log.Println("Client has disconnected :(")
 			return
 		}
@@ -128,11 +127,10 @@ func (h *Handler) HandlePassengerData(w http.ResponseWriter, r *http.Request) {
 func buildNationalPassengerData(operatorData []realtime.OperatorPage) (*model.PerformanceData, error) {
 	var onTimeTotal, cancelledVeryLateTotal, lateTotal, fullTotal int
 	var bestOperator, worstOperator *model.OperatorPerformance
-	bestScore := math.MaxFloat64
-	worstScore := -1.0
+	bestScore := -1.0   // Changed to start at lowest possible score
+	worstScore := 101.0 // Changed to start above maximum possible score
 
 	for _, op := range operatorData {
-
 		if val, ok := model.TrainOperators[op.Operator.Code]; ok {
 			if val.Carries != model.Passenger {
 				continue
@@ -181,11 +179,11 @@ func buildNationalPassengerData(operatorData []realtime.OperatorPage) (*model.Pe
 		score := calculatePerformanceScore(operatorPerf)
 		operatorPerf.PerformanceScore = score
 
-		if score < bestScore && total >= 10 { // Minimum threshold to avoid operators with very few trains
+		if score > bestScore && total >= 10 { // Changed to look for highest score
 			bestScore = score
 			bestOperator = &operatorPerf
 		}
-		if score > worstScore && total >= 10 {
+		if score < worstScore && total >= 10 { // Changed to look for lowest score
 			worstScore = score
 			worstOperator = &operatorPerf
 		}
@@ -227,15 +225,25 @@ func buildNationalPassengerData(operatorData []realtime.OperatorPage) (*model.Pe
 
 func calculatePerformanceScore(op model.OperatorPerformance) float64 {
 	if op.Total == 0 {
-		return math.MaxFloat64
+		return 0 // Return 0 for no trains instead of MaxFloat64
 	}
 
 	// Weight cancelled/very late more heavily than regular late trains
 	cancelledWeight := 2.0
 	lateWeight := 1.0
 
-	score := (float64(op.CancelledOrVeryLate)*cancelledWeight +
-		float64(op.Late-op.CancelledOrVeryLate)*lateWeight) / float64(op.Total)
+	// Calculate the percentage of on-time trains (positive factor)
+	onTimeScore := float64(op.OnTime) / float64(op.Total) * 100
+
+	// Calculate the penalty for late and cancelled trains
+	penaltyScore := (float64(op.CancelledOrVeryLate)*cancelledWeight +
+		float64(op.Late-op.CancelledOrVeryLate)*lateWeight) / float64(op.Total) * 100
+
+	// Final score: on-time percentage minus weighted penalties
+	// This will give a score between 0 and 100, where:
+	// - 100 is perfect (all trains on time)
+	// - 0 is worst (all trains cancelled/very late)
+	score := math.Max(0, onTimeScore-penaltyScore)
 
 	return score
 }
