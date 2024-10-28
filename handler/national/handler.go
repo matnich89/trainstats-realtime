@@ -127,8 +127,8 @@ func (h *Handler) HandlePassengerData(w http.ResponseWriter, r *http.Request) {
 func buildNationalPassengerData(operatorData []realtime.OperatorPage) (*model.PerformanceData, error) {
 	var onTimeTotal, cancelledVeryLateTotal, lateTotal, fullTotal int
 	var bestOperator, worstOperator *model.OperatorPerformance
-	bestScore := -1.0   // Changed to start at lowest possible score
-	worstScore := 101.0 // Changed to start above maximum possible score
+	bestScore := -1.0
+	worstScore := 101.0
 
 	for _, op := range operatorData {
 		if val, ok := model.TrainOperators[op.Operator.Code]; ok {
@@ -179,11 +179,11 @@ func buildNationalPassengerData(operatorData []realtime.OperatorPage) (*model.Pe
 		score := calculatePerformanceScore(operatorPerf)
 		operatorPerf.PerformanceScore = score
 
-		if score > bestScore && total >= 10 { // Changed to look for highest score
+		if score > bestScore && total >= 10 {
 			bestScore = score
 			bestOperator = &operatorPerf
 		}
-		if score < worstScore && total >= 10 { // Changed to look for lowest score
+		if score < worstScore && total >= 10 {
 			worstScore = score
 			worstOperator = &operatorPerf
 		}
@@ -225,24 +225,17 @@ func buildNationalPassengerData(operatorData []realtime.OperatorPage) (*model.Pe
 
 func calculatePerformanceScore(op model.OperatorPerformance) float64 {
 	if op.Total == 0 {
-		return 0 // Return 0 for no trains instead of MaxFloat64
+		return 0
 	}
 
-	// Weight cancelled/very late more heavily than regular late trains
 	cancelledWeight := 2.0
 	lateWeight := 1.0
 
-	// Calculate the percentage of on-time trains (positive factor)
 	onTimeScore := float64(op.OnTime) / float64(op.Total) * 100
 
-	// Calculate the penalty for late and cancelled trains
 	penaltyScore := (float64(op.CancelledOrVeryLate)*cancelledWeight +
 		float64(op.Late-op.CancelledOrVeryLate)*lateWeight) / float64(op.Total) * 100
 
-	// Final score: on-time percentage minus weighted penalties
-	// This will give a score between 0 and 100, where:
-	// - 100 is perfect (all trains on time)
-	// - 0 is worst (all trains cancelled/very late)
 	score := math.Max(0, onTimeScore-penaltyScore)
 
 	return score
